@@ -1,0 +1,33 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sqlserver
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=${DB_PASSWORD}
+    ports:
+      - '${DB_PORT}:1433'
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+
+  init-db:
+    image: mcr.microsoft.com/mssql-tools:latest
+    depends_on:
+      - sqlserver
+    environment:
+      - DB_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - ./sql/init-db.sql:/init-db.sql:ro
+    entrypoint: >
+      bash -c "
+        echo 'Esperando SQL Server…' &&
+        for i in \$(seq 1 20); do
+          /opt/mssql-tools/bin/sqlcmd -S sqlserver -U sa -P \"\$DB_PASSWORD\" -Q \"SELECT 1\" >/dev/null 2>&1 && break
+          sleep 3
+        done
+        echo 'SQL listo, ejecutando init-db.sql' &&
+        /opt/mssql-tools/bin/sqlcmd -S sqlserver -U sa -P \"\$DB_PASSWORD\" -i /init-db.sql
+      "
+
+volumes:
+  sqlserver_data:
